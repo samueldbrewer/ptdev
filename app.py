@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import re
 from transformers import pipeline
-from prophet import Prophet
 import streamlit as st
 from io import BytesIO
 
@@ -35,39 +34,8 @@ def convert_excel_date(date_series):
     else:
         return pd.to_datetime(date_series, errors='coerce')
 
-def forecast_usage(data, date_column, manufacturer_column, item_column, top_items):
-    # Prepare the dataframe for forecasting
-    forecast_results = []
-
-    for manufacturer, item in top_items:
-        item_data = data[(data[manufacturer_column] == manufacturer) & (data[item_column] == item)]
-        item_data = item_data[[date_column]].copy()
-        item_data['y'] = item_data.groupby(date_column)[date_column].transform('count')
-        item_data = item_data.drop_duplicates().rename(columns={date_column: 'ds'})
-
-        if len(item_data) < 2:
-            continue  # Skip items with less than 2 data points
-
-        # Initialize Prophet model
-        model = Prophet()
-        model.fit(item_data)
-
-        # Create future dataframe
-        future = model.make_future_dataframe(periods=52, freq='W')
-
-        # Make forecast
-        forecast = model.predict(future)
-        forecast['manufacturer'] = manufacturer
-        forecast['item'] = item
-        forecast_results.append(forecast[['ds', 'yhat', 'manufacturer', 'item']])
-
-    # Combine all forecast results
-    combined_forecast = pd.concat(forecast_results, ignore_index=True)
-
-    return combined_forecast
-
 def main():
-    st.title("Sales Forecasting Tool")
+    st.title("Sales Analysis Tool")
 
     # File uploader
     uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx", "xlsb"])
@@ -118,17 +86,12 @@ def main():
         item_total_freq['Cumulative Percentage'] = item_total_freq['Percent Contribution'].cumsum().round(1)
         top_80_items = item_total_freq[item_total_freq['Cumulative Percentage'] <= 80][[manufacturer_column, item_column]]
 
-        # Forecast Future Usage for Top 80% Items for Each Top Manufacturer
-        forecast_results = forecast_usage(data, date_column, manufacturer_column, item_column, top_80_items.values.tolist())
-
-        # Save the results to a new Excel file with eight sheets
+        # Save the results to a new Excel file with four sheets
         output_file = BytesIO()
         with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
             manufacturer_count.to_excel(writer, sheet_name='Weekly Manufacturer Frequency', index=False)
             avg_invoices_manufacturer.to_excel(writer, sheet_name='Average Weekly Invoices (Man)', index=False)
             top_80_manufacturers.to_excel(writer, sheet_name='Top 80% Manufacturers', index=False)
-            forecast_results.to_excel(writer, sheet_name='Forecast Results (Items)', index=False)
-            
             top_manufacturer_item_count.to_excel(writer, sheet_name='Weekly Man-Item Frequency', index=False)
             avg_invoices_item.to_excel(writer, sheet_name='Average Weekly Invoices (Items)', index=False)
             top_80_items.to_excel(writer, sheet_name='Top 80% Man-Items', index=False)
