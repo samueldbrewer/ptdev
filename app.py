@@ -3,27 +3,10 @@ import pandas as pd
 import re
 from transformers import pipeline
 from prophet import Prophet
-
-# Set the environment variable for TensorFlow
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+import streamlit as st
 
 def list_excel_files(directory):
     return [f for f in os.listdir(directory) if f.endswith('.xlsx') or f.endswith('.xlsb')]
-
-def select_file(files):
-    print("Select a file to analyze:")
-    for i, file in enumerate(files):
-        print(f"{i + 1}. {file}")
-    choice = int(input("Enter the number of the file: ")) - 1
-    return files[choice]
-
-def select_sheet(excel_file):
-    sheets = pd.ExcelFile(excel_file).sheet_names
-    print("Select a sheet to analyze:")
-    for i, sheet in enumerate(sheets):
-        print(f"{i + 1}. {sheet}")
-    choice = int(input("Enter the number of the sheet: ")) - 1
-    return sheets[choice]
 
 def recommend_columns(headers):
     classifier = pipeline('zero-shot-classification', model='facebook/bart-large-mnli')
@@ -42,11 +25,10 @@ def recommend_columns(headers):
     return ranked_columns
 
 def select_column(ranked_columns, column_type):
-    print(f"Select a {column_type} column:")
-    for i, (header, score) in enumerate(ranked_columns[column_type]):
-        print(f"{i + 1}. {header} (Score: {score:.2f})")
-    choice = int(input(f"Enter the number of the {column_type} column: ")) - 1
-    return ranked_columns[column_type][choice][0]
+    st.write(f"Select a {column_type} column:")
+    options = [header for header, score in ranked_columns[column_type]]
+    choice = st.selectbox(f"Select a {column_type} column", options)
+    return choice
 
 def convert_excel_date(date_series):
     # Handle both datetime and numeric date formats
@@ -87,15 +69,21 @@ def forecast_usage(data, date_column, manufacturer_column, item_column, top_item
     return combined_forecast
 
 def main():
+    st.title("Sales Forecasting Tool")
+
     directory = '.'  # Change this to your target directory
     files = list_excel_files(directory)
     
     if not files:
-        print("No Excel files found in the directory.")
+        st.write("No Excel files found in the directory.")
         return
 
-    excel_file = os.path.join(directory, select_file(files))
-    sheet_name = select_sheet(excel_file)
+    excel_file = st.selectbox("Select an Excel file to analyze", files)
+    sheet_name = st.text_input("Enter the sheet name to analyze")
+
+    if not sheet_name:
+        st.write("Please enter a sheet name.")
+        return
 
     data = pd.read_excel(excel_file, sheet_name=sheet_name, engine='openpyxl' if excel_file.endswith('.xlsx') else 'pyxlsb')
     headers = data.columns.tolist()
@@ -106,9 +94,9 @@ def main():
     manufacturer_column = select_column(ranked_columns, 'manufacturer')
     item_column = select_column(ranked_columns, 'item number')
 
-    print(f"Selected date column: {date_column}")
-    print(f"Selected manufacturer column: {manufacturer_column}")
-    print(f"Selected item column: {item_column}")
+    st.write(f"Selected date column: {date_column}")
+    st.write(f"Selected manufacturer column: {manufacturer_column}")
+    st.write(f"Selected item column: {item_column}")
 
     # Convert the date column to a usable datetime format
     data[date_column] = convert_excel_date(data[date_column])
@@ -169,7 +157,7 @@ def main():
 
     workbook.save(output_file)
 
-    print(f"Analysis saved to {output_file}")
+    st.write(f"Analysis saved to {output_file}")
 
 if __name__ == "__main__":
     main()
