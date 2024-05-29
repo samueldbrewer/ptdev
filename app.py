@@ -56,74 +56,76 @@ def main():
             manufacturer_column = select_column(ranked_columns, 'manufacturer')
             item_column = select_column(ranked_columns, 'item number')
 
-            st.write(f"Selected date column: {date_column}")
-            st.write(f"Selected manufacturer column: {manufacturer_column}")
-            st.write(f"Selected item column: {item_column}")
+            # Add a submit button
+            if st.button('Submit'):
+                st.write(f"Selected date column: {date_column}")
+                st.write(f"Selected manufacturer column: {manufacturer_column}")
+                st.write(f"Selected item column: {item_column}")
 
-            # Convert the date column to a usable datetime format
-            data[date_column] = convert_excel_date(data[date_column])
+                # Convert the date column to a usable datetime format
+                data[date_column] = convert_excel_date(data[date_column])
 
-            # Drop rows with NaN dates to avoid errors
-            data = data.dropna(subset=[date_column])
+                # Drop rows with NaN dates to avoid errors
+                data = data.dropna(subset=[date_column])
 
-            # Extract week number and year from the date column
-            data['Week'] = data[date_column].dt.isocalendar().week
-            data['Year'] = data[date_column].dt.year
+                # Extract week number and year from the date column
+                data['Week'] = data[date_column].dt.isocalendar().week
+                data['Year'] = data[date_column].dt.year
 
-            # Analyze Manufacturers
-            st.write("Analyzing manufacturers...")
-            manufacturer_count = data.groupby(['Year', 'Week', manufacturer_column]).size().reset_index(name='Frequency')
-            avg_invoices_manufacturer = manufacturer_count.groupby(manufacturer_column)['Frequency'].mean().reset_index(name='Average Weekly Invoices')
-            manufacturer_total_freq = data[manufacturer_column].value_counts().reset_index()
-            manufacturer_total_freq.columns = [manufacturer_column, 'Total Frequency']
-            manufacturer_total_freq['Percent Contribution'] = (manufacturer_total_freq['Total Frequency'] / manufacturer_total_freq['Total Frequency'].sum() * 100).round(1)
-            manufacturer_total_freq['Cumulative Percentage'] = manufacturer_total_freq['Percent Contribution'].cumsum().round(1)
-            top_80_manufacturers = manufacturer_total_freq[manufacturer_total_freq['Cumulative Percentage'] <= 80]
-            top_manufacturers = top_80_manufacturers[manufacturer_column].tolist()
+                # Analyze Manufacturers
+                st.write("Analyzing manufacturers...")
+                manufacturer_count = data.groupby(['Year', 'Week', manufacturer_column]).size().reset_index(name='Frequency')
+                avg_invoices_manufacturer = manufacturer_count.groupby(manufacturer_column)['Frequency'].mean().reset_index(name='Average Weekly Invoices')
+                manufacturer_total_freq = data[manufacturer_column].value_counts().reset_index()
+                manufacturer_total_freq.columns = [manufacturer_column, 'Total Frequency']
+                manufacturer_total_freq['Percent Contribution'] = (manufacturer_total_freq['Total Frequency'] / manufacturer_total_freq['Total Frequency'].sum() * 100).round(1)
+                manufacturer_total_freq['Cumulative Percentage'] = manufacturer_total_freq['Percent Contribution'].cumsum().round(1)
+                top_80_manufacturers = manufacturer_total_freq[manufacturer_total_freq['Cumulative Percentage'] <= 80]
+                top_manufacturers = top_80_manufacturers[manufacturer_column].tolist()
 
-            # Analyze Manufacturer-Item Combinations for Top Manufacturers
-            st.write("Analyzing manufacturer-item combinations...")
-            top_manufacturer_item_count = data[data[manufacturer_column].isin(top_manufacturers)].groupby(['Year', 'Week', manufacturer_column, item_column]).size().reset_index(name='Frequency')
-            avg_invoices_item = top_manufacturer_item_count.groupby([manufacturer_column, item_column])['Frequency'].mean().reset_index(name='Average Weekly Invoices')
-            item_total_freq = data[data[manufacturer_column].isin(top_manufacturers)].groupby([manufacturer_column, item_column]).size().reset_index(name='Total Frequency')
-            item_total_freq['Percent Contribution'] = (item_total_freq['Total Frequency'] / item_total_freq['Total Frequency'].sum() * 100).round(1)
-            item_total_freq['Cumulative Percentage'] = item_total_freq['Percent Contribution'].cumsum().round(1)
-            top_80_items = item_total_freq[item_total_freq['Cumulative Percentage'] <= 80][[manufacturer_column, item_column]]
+                # Analyze Manufacturer-Item Combinations for Top Manufacturers
+                st.write("Analyzing manufacturer-item combinations...")
+                top_manufacturer_item_count = data[data[manufacturer_column].isin(top_manufacturers)].groupby(['Year', 'Week', manufacturer_column, item_column]).size().reset_index(name='Frequency')
+                avg_invoices_item = top_manufacturer_item_count.groupby([manufacturer_column, item_column])['Frequency'].mean().reset_index(name='Average Weekly Invoices')
+                item_total_freq = data[data[manufacturer_column].isin(top_manufacturers)].groupby([manufacturer_column, item_column]).size().reset_index(name='Total Frequency')
+                item_total_freq['Percent Contribution'] = (item_total_freq['Total Frequency'] / item_total_freq['Total Frequency'].sum() * 100).round(1)
+                item_total_freq['Cumulative Percentage'] = item_total_freq['Percent Contribution'].cumsum().round(1)
+                top_80_items = item_total_freq[item_total_freq['Cumulative Percentage'] <= 80][[manufacturer_column, item_column]]
 
-            # Save the results to a new Excel file with four sheets
-            st.write("Saving results to Excel file...")
-            output_file = BytesIO()
-            with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                manufacturer_count.to_excel(writer, sheet_name='Weekly Manufacturer Frequency', index=False)
-                avg_invoices_manufacturer.to_excel(writer, sheet_name='Average Weekly Invoices (Man)', index=False)
-                top_80_manufacturers.to_excel(writer, sheet_name='Top 80% Manufacturers', index=False)
-                top_manufacturer_item_count.to_excel(writer, sheet_name='Weekly Man-Item Frequency', index=False)
-                avg_invoices_item.to_excel(writer, sheet_name='Average Weekly Invoices (Items)', index=False)
-                top_80_items.to_excel(writer, sheet_name='Top 80% Man-Items', index=False)
+                # Save the results to a new Excel file with four sheets
+                st.write("Saving results to Excel file...")
+                output_file = BytesIO()
+                with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+                    manufacturer_count.to_excel(writer, sheet_name='Weekly Manufacturer Frequency', index=False)
+                    avg_invoices_manufacturer.to_excel(writer, sheet_name='Average Weekly Invoices (Man)', index=False)
+                    top_80_manufacturers.to_excel(writer, sheet_name='Top 80% Manufacturers', index=False)
+                    top_manufacturer_item_count.to_excel(writer, sheet_name='Weekly Man-Item Frequency', index=False)
+                    avg_invoices_item.to_excel(writer, sheet_name='Average Weekly Invoices (Items)', index=False)
+                    top_80_items.to_excel(writer, sheet_name='Top 80% Man-Items', index=False)
 
-            # Apply formatting to the percentage columns in the 'Top 80% Manufacturers' and 'Top 80% Man-Items' sheets
-            from openpyxl import load_workbook
+                # Apply formatting to the percentage columns in the 'Top 80% Manufacturers' and 'Top 80% Man-Items' sheets
+                from openpyxl import load_workbook
 
-            workbook = load_workbook(output_file)
-            worksheet_manufacturers = workbook['Top 80% Manufacturers']
-            for col in ['C', 'D']:
-                for cell in worksheet_manufacturers[col][1:]:
-                    cell.number_format = '0.0%'
+                workbook = load_workbook(output_file)
+                worksheet_manufacturers = workbook['Top 80% Manufacturers']
+                for col in ['C', 'D']:
+                    for cell in worksheet_manufacturers[col][1:]:
+                        cell.number_format = '0.0%'
 
-            worksheet_items = workbook['Top 80% Man-Items']
-            for col in ['C', 'D']:
-                for cell in worksheet_items[col][1:]:
-                    cell.number_format = '0.0%'
+                worksheet_items = workbook['Top 80% Man-Items']
+                for col in ['C', 'D']:
+                    for cell in worksheet_items[col][1:]:
+                        cell.number_format = '0.0%'
 
-            workbook.save(output_file)
+                workbook.save(output_file)
 
-            st.write("Analysis complete. You can download the result below.")
-            st.download_button(
-                label="Download Excel file",
-                data=output_file.getvalue(),
-                file_name="manufacturer_and_item_analysis.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                st.write("Analysis complete. You can download the result below.")
+                st.download_button(
+                    label="Download Excel file",
+                    data=output_file.getvalue(),
+                    file_name="manufacturer_and_item_analysis.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         except Exception as e:
             st.error(f"An error occurred: {e}")
 
